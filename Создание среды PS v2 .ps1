@@ -9,11 +9,11 @@ $NameEnvironment = "NTL"
 #Двумерный массив с конфигурацией среды.
 #!ВАЖНО! Должно быть указано минимум 2 среды для корректной работы!
 #Хранит: 
-# 1 аргумент: Приписка типа среды. Например, приписка "_dev" и $NameEnvironment = "NTL" (см. выше) значит, что папка среды будет называться NTL_dev 
-# 2 аргумент: Необходимость копирования.
-# 3 аргумент: Необходимость изменения файла web.config
-# 4 аргумент: Название сайта в IIS. Для значения по умолчанию необходимо указать defaultName
-# 5 аргумент: Номер порта в IIS. Для значения по умолчанию необходимо указать defaultPort.
+# 0 аргумент: Текст приписки среды.
+# 1 аргумент: Необходимость копирования.
+# 2 аргумент: Необходимость изменения файла web.config
+# 3 аргумент: Название сайта в IIS. Для значения по умолчанию необходимо указать defaultName
+# 4 аргумент: Номер порта в IIS. Для значения по умолчанию необходимо указать defaultPort.
 
 $Envirouments = @(
     @('_dev',   $true,  $true,  'defaultName', 'defaultPort'),
@@ -34,6 +34,8 @@ $DataBaseTypes = @(
     @('PostgreSQL', '.enviroument', $false),
     @('Oracle',     '.DMP',    $false)
 )
+
+#Функции с реализованной логикой
 
 function Print-Error ([string]$textError){
 
@@ -194,7 +196,8 @@ function Create-Datebase-MSSQL2(){
     Restore-DbaDatabase -SqlServer $DestServer -Path $dbBackupPath -DestinationDataDirectory $DataFolder -DestinationLogDirectory $LogFolder
 }
 
-#Стартовая информация
+#Начало работы программы 
+
 Write-Host "<--------------------------------------------------->"
 Write-Host "Расположите в одной директории этот файл с бэкапом."
 Write-Host ""
