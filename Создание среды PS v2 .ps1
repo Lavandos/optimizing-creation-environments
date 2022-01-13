@@ -16,11 +16,9 @@ $NameEnvironment = "NTL"
 # 5 аргумент: Номер порта в IIS. Для значения по умолчанию необходимо указать defaultPort.
 
 $Envirouments = @(
-    @('_dev3',   $true,  $true,  'kkkkdev3', '4050'),
-    @('_dev31',  $true,  $true,  'defaultName', '4049'),
-    @('_test4',  $true, $false, 'test4', 'defaultPort'),
-    @('_test41', $true, $false, 'defaultName', 'defaultPort'),
-    @('_test5', $false, $true, 'defaultName', 'defaultPort')
+    @('_dev',   $true,  $true,  'defaultName', 'defaultPort'),
+    @('_test',  $true,  $false,  'defaultName1', 'defaultPort')
+    #@('_test4',  $true,  $false, '_test4R1', '4015')
 )
 
 #Дополнительные настройки
@@ -54,26 +52,36 @@ function Create-IIS (){
             continue
         }
         $port = $webSite.Bindings.Collection.bindingInformation -match "\d+"|%{$matches[0]}
+
+        #Прохожусь по всем существующим сайтам в IIS и получаю максимальный порт
         if ($port -gt $maxPort){
             $maxPort = $port
         }
+        $maxPort = [int]$maxPort
     }
-    $maxPort = [int]$maxPort+1
+    #Прохожусь по заданным средам, которые указаны в массиве Envirouments
+    foreach ($enviroument in $Envirouments){
+        if ($enviroument[4] -ne 'defaultPort'){
+            if ([int]$enviroument[4] -gt $maxPort){
+                $maxPort = [int]$enviroument[4]
+            }
+        }
+    }
 
     #Делаю номер порта по умолчанию = 4000
-    if($maxPort -eq 0){
+    if($maxPort -eq -1){
         $maxPort = 4000
     }
 
     for ($i=0; $i -lt $Envirouments.Count; $i++){
         if ($Envirouments[$i][1] -like $true){
-
             if ($Envirouments[$i][3] -like 'defaultName'){
                 $Envirouments[$i][3] = "$NameEnvironment$($Envirouments[$i][0])"
             }
 
             if ($Envirouments[$i][4] -like 'defaultPort'){
-                $Envirouments[$i][4] = $maxPort
+                $maxPort += 1
+                $Envirouments[$i][4] = $maxPort  
             }
 
             $nameWebSite = $Envirouments[$i][3]
@@ -82,16 +90,14 @@ function Create-IIS (){
 
             if (Get-Website -Name "$nameWebSite"){
                 Write-Host "!--> Сайт с именем $nameWebSite уже существует!"
+                $maxPort -= 1
             }
             else{
-                $newAppPool = New-WebAppPool -Name "$nameWebSite"
-                $newAppPool.autoStart = "true"
-                $newAppPool | Set-Item
-
+                New-WebAppPool -Name "$nameWebSite"
                 New-WebSite -Name "$nameWebSite" -Port "$portWebSite" -PhysicalPath "$physicalPathWebSite" -ApplicationPool "$nameWebSite"
                 New-WebApplication -Name "0" -Site "$nameWebSite" -PhysicalPath "$physicalPathWebSite\Terrasoft.WebApp" -ApplicationPool "$nameWebSite"
 
-                $maxPort += 1
+                
             }
         }
     }
