@@ -17,10 +17,8 @@ $NameEnvironment = "NTL"
 
 $Envirouments = @(
     @('_dev',   $true,  $true,  'defaultName', 'defaultPort'),
-    @('_test',  $true,  $false,  'defaultName', 'defaultPort')
-    #@('_test4',  $true,  $false, '_test4', '3475'),
-    #@('_test41', $true,  $false, 'defaultName', 'defaultPort'),
-    #@('_test5',  $false, $true,  'defaultName', 'defaultPort')
+    @('_test',  $true,  $false,  'defaultName1', 'defaultPort')
+    #@('_test4',  $true,  $false, '_test4R1', '4015')
 )
 
 #Дополнительные настройки
@@ -92,6 +90,7 @@ function Create-IIS (){
 
             if (Get-Website -Name "$nameWebSite"){
                 Write-Host "!--> Сайт с именем $nameWebSite уже существует!"
+                $maxPort -= 1
             }
             else{
                 New-WebAppPool -Name "$nameWebSite"
