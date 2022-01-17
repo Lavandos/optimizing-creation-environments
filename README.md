@@ -6,12 +6,13 @@ ____
 Выделено то, что уже реализовано. Остальное будет в ближайшее время реализовано :wink:
 + `Копирует среды.`
 + `Добавляет сайты в IIS.`
++ Восстанавливает базу данных
+    + `Восстановление из .bak файла базы данных в MSSQL.`
+    + Восстановление из .backup файла базы данных в PostgreSQL.
 + Меняет содержимое файлов в файловой системе
     + `Меняет файл Web.config для среды разработки.`
-    + Меняет файл ConnectionString.config.
-+ Восстанавливает базу данных
-    + `Восстановление из .bak файла базы данных в MS SQL.`
-    + Восстановление из .backup файла базы данных в Postgre.
+    + `Меняет файл ConnectionString.config при использовании MSSQL`
+    + Меняет файл ConnectionString.config при использовании PostgreSQL.
 ____
 ## Конфигурация системы    
 Прежде чем запустить у себя, необходимо:    
@@ -73,12 +74,14 @@ ____
 + 6 аргумент: *Имя пользователя.*    
 Ну вы поняли). Не хотите заморачиваться? Тогда просто укажите в аргументе значение `defaultLoginUSERDB`!    
 + 7 аргумент: *Пароль пользователя.*    
-Также можно указать и свой пароль для нового пользователя. Не хотите заморачиваться? Тогда просто укажите в аргументе значение `defaultPasswordUSERDB`!   
+Также можно указать и свой пароль для нового пользователя. Не хотите заморачиваться? Тогда просто укажите в аргументе значение `defaultPasswordUSERDB`!    
++ 8 аргумент: *Номер базы Redis.*    
+Следуюет указать то значение базы Redis, которое хотите увидеть в ConnectionStrings!
 ```powershell
     #Двумерный массив с конфигурацией среды.
     $Envirouments = @(
-        @('_DevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB'),
-        @('_TestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
-        @('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
+        @('_MyDevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 5),
+        @('_MyTestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 6)
+        #@('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 7)
     )
 ```
