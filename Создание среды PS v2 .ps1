@@ -6,6 +6,12 @@ $PathEnviroument = "C:\inetpub\wwwroot"
 #Название папки с проектом
 $NameEnvironment = "NTL"
 
+#Массив имён серверов
+$NameServers = @(
+    'DESKTOP-C8A1CHF\SQLEXPRESS'
+
+)
+
 #Двумерный массив с конфигурацией среды.
 #!ВАЖНО! Должно быть указано минимум 2 среды для корректной работы!
 #Хранит: 
@@ -17,8 +23,8 @@ $NameEnvironment = "NTL"
 # 5 аргумент: Имя базы данных. Для значения по умолчанию необходимо указать defaultNameDB.
 
 $Envirouments = @(
-    @('_dev1',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB'),
-    @('_test1',  $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
+    @('_DevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB'),
+    @('_TestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
     #@('_test4',$true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
 )
 
@@ -37,14 +43,8 @@ $DataBaseTypes = @(
 
 #Функции с реализованной логикой
 
-function Print-Error ([string]$textError){
-
-    Write-Error '$textError'
-    Write-Host 'Операция прервана!' 
-}
-
 function Create-IIS (){
-
+    Write-Host "<---------------------------Начало настройки сайта IIS--------------------------->$([System.Environment]::NewLine)"
     #Конфигурация сайта IIS
 
     $maxPort = -1
@@ -63,7 +63,7 @@ function Create-IIS (){
     }
     #Прохожусь по заданным средам, которые указаны в массиве Envirouments
     foreach ($enviroument in $Envirouments){
-        if ($enviroument[4] -ne 'IISdefaultPort'){
+        if ($enviroument[4] -ne 'defaultPortIIS'){
             if ([int]$enviroument[4] -gt $maxPort){
                 $maxPort = [int]$enviroument[4]
             }
@@ -77,11 +77,11 @@ function Create-IIS (){
 
     for ($i=0; $i -lt $Envirouments.Count; $i++){
         if ($Envirouments[$i][1] -like $true){
-            if ($Envirouments[$i][3] -like 'IISdefaultName'){
+            if ($Envirouments[$i][3] -like 'defaultNameIIS'){
                 $Envirouments[$i][3] = "$NameEnvironment$($Envirouments[$i][0])"
             }
 
-            if ($Envirouments[$i][4] -like 'IISdefaultPort'){
+            if ($Envirouments[$i][4] -like 'defaultPortIIS'){
                 $maxPort += 1
                 $Envirouments[$i][4] = $maxPort  
             }
@@ -91,18 +91,18 @@ function Create-IIS (){
             $physicalPathWebSite = "$PathEnviroument\$($NameEnvironment)$($Envirouments[$i][0])"
 
             if (Get-Website -Name "$nameWebSite"){
-                Write-Host "!--> Сайт с именем $nameWebSite уже существует!"
+                Write-Warning "Сайт с именем [$($nameWebSite)] уже существует!"
                 $maxPort -= 1
             }
             else{
-                New-WebAppPool -Name "$nameWebSite"
-                New-WebSite -Name "$nameWebSite" -Port "$portWebSite" -PhysicalPath "$physicalPathWebSite" -ApplicationPool "$nameWebSite"
-                New-WebApplication -Name "0" -Site "$nameWebSite" -PhysicalPath "$physicalPathWebSite\Terrasoft.WebApp" -ApplicationPool "$nameWebSite"
-
-                
+                [void](New-WebAppPool -Name "$nameWebSite")
+                [void](New-WebSite -Name "$nameWebSite" -Port "$portWebSite" -PhysicalPath "$physicalPathWebSite" -ApplicationPool "$nameWebSite")
+                [void](New-WebApplication -Name "0" -Site "$nameWebSite" -PhysicalPath "$physicalPathWebSite\Terrasoft.WebApp" -ApplicationPool "$nameWebSite")
+                Write-Host "Создан сайт IIS [$($nameWebSite):$($portWebSite)]$([System.Environment]::NewLine)"
             }
         }
     }
+    Write-Host "<---------------------------Конец настройки сайта IIS--------------------------->$([System.Environment]::NewLine)"
 }
 
 function ChangeStatusDataBaseTypes([System.IO.FileInfo]$fileBackupDB){
@@ -114,19 +114,24 @@ function ChangeStatusDataBaseTypes([System.IO.FileInfo]$fileBackupDB){
 }
 
 function Copy-Enviroument (){
+    Write-Host "$([System.Environment]::NewLine) <---------------------------Начало настройки папки проекта---------------------------> $([System.Environment]::NewLine)"
     foreach ($enviroument in $Envirouments){
         $folderPath = "$pathEnviroument\$NameEnvironment$($enviroument[0])"
         if ($enviroument[1]){
             try{
+                if (-not (Test-Path -Path $PSScriptRoot\$NameEnvironment)){
+                    Write-Error "Невозможно найти папку чистой среды [$($NameEnvironment)] в директории [$($PSScriptRoot)]"
+                    Exit
+                }
                 if (Test-Path -Path "$folderPath"){
-                    Write-Host "!--> По пути $folderPath уже существует такая папка!"
+                    Write-Warning "По пути [$($folderPath)] уже существует такая папка!"
                     continue;
                 }
                 else {
-                    Write-Host "Идёт копирование среды $nameEnvironment$($enviroument[0])..."
+                    Write-Host "Идёт копирование среды [$($nameEnvironment)$($enviroument[0])]..."
                     Copy-Item -Path "$PSScriptRoot\$NameEnvironment" -Destination "$($folderPath)" -Recurse
 
-                    Write-Host "Среда успешно скопирована! Расположение: $($folderPath)"
+                    Write-Host "Среда успешно скопирована! Расположение: [$($folderPath)]"
                 
                     #Определение необходимой базы данных
                     $fileBackupDB = Get-Childitem -Path "$folderPath\db"
@@ -136,13 +141,15 @@ function Copy-Enviroument (){
                         Update-WebConfig $enviroument
                     }
                 }
+                Write-Host $([System.Environment]::NewLine)
             }
             catch{
-                Print-Error "Ошибка при копировании среды $($NameEnvironment)$($enviroument[0])!"
+                Write-Error "Ошибка при копировании среды [$($NameEnvironment)$($enviroument[0])]!"
                 Exit
             }
         }
     }
+    Write-Host "<---------------------------Конец настройки папки проекта--------------------------->$([System.Environment]::NewLine) "
 }
 
 function Update-WebConfig([string[]] $Enviroument){
@@ -155,6 +162,8 @@ function Update-WebConfig([string[]] $Enviroument){
     $file = Get-Content -Path $path
     $ChangedFile = $file -replace '<fileDesignMode enabled="false" />', '<fileDesignMode enabled="true" />'
     $ChangedFile | Set-Content -Path $path
+
+    Write-Host "Для среды разработки [$($NameEnvironment)$($Enviroument[0])] изменён файл [Web.config]!"
 }
 
 function Init-Variables-DBs(){
@@ -172,162 +181,104 @@ function Init-Variables-DBs(){
 }
 
 function Recover-MSSQL(){
-
+    Write-Host "<---------------------------Начало настройки базы данных MS SQL--------------------------->$([System.Environment]::NewLine)"
     Import-Module SQLPS -DisableNameChecking
     [void][reflection.assembly]::LoadWithPartialName("Microsoft.SqlServer.Smo")
-    $server = New-Object("Microsoft.SqlServer.Management.Smo.Server")
+    $server = New-Object("Microsoft.SqlServer.Management.Smo.Server") "$($NameServers[0])"
 
     #Инициализация переменных для базы данных
     Init-Variables-DBs
     
     foreach($enviroument in $Envirouments){
-        $databasename = "$($enviroument[5])"
+        $databaseName = "$($enviroument[5])"
         $dbUserName = "$($enviroument[6])"
         $loginName = "$($enviroument[6])"
         $password = "$($enviroument[7])"
         $roleOwnerName = "db_owner"
-
-        $dbExists = $false
-        foreach ($db in $server.databases) {
-          if ($db.name -eq "$databasename") {
-            Write-Host "!--> Такая база данных уже существует!"
-            $dbExists = $true
-          }
-        }
-
-        if (-not $dbExists) {
-            $db = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -argumentlist $server, "$databasename"
-            $db.Create()
-            Write-Host "Создана база данных $($databasename)!"
-
-            $loginExists = $false
-            foreach ($login in $server.logins) {
-              if ($login.name -eq "$loginName") {
-                Write-Host "!--> Такой пользователь уже существует!"
-                $loginExists = $true
+        if ($enviroument[1]){
+            #Проверяю, есть ли такая бд
+            $dbExists = $false
+            foreach ($db in $server.databases) {
+              if ($db.name -eq "$databaseName") {
+                Write-Warning "База данных [$($databaseName)] уже существует!"
+                $dbExists = $true
               }
             }
+            # Если нет такой бд
+            if (-not $dbExists) {
+                $db = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -argumentlist $server, "$databasename"
+                $db.Create()
+                Write-Host "Создана база данных [$($databaseName)]!"
 
-            if (-not $loginExists){
+                #Восстановление базы данных
+                $nameRelocateDataFile = "$($databaseName)_Data"
+                $nameRelocateLogFile = "$($databaseName)_Log"
+                $pathBackupFile = "$($PathEnviroument)\$($NameEnvironment)$($enviroument[0])\db"
+                $backupFile = Get-Childitem -Path "$pathBackupFile"    
+                Restore-SqlDatabase -ServerInstance "$($NameServers[0])" -Database "$($databaseName)" -BackupFile "$($pathBackupFile)\$($backupFile)" -ReplaceDatabase
+            
+                Write-Host "База данных [$($databaseName)] восстановлена из файла [$($backupFile)]!"
+
+                # Если нет такого логина
+                $loginExists = $false
+                foreach ($login in $server.logins) {
+                  if ($login.name -eq "$loginName") {
+                    Write-Warning "Пользователь [$($loginName)] уже существует!"
+                    $loginExists = $true
+                  }
+                }
+
+                if (-not $loginExists){
+                
+                    #Добавить пользователя
+                    $login = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Login -ArgumentList $server, $loginName
+                    $login.LoginType = [Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin
+                    $login.PasswordExpirationEnabled = $false
+                    $login.Create($password)
+                    Write-Host "Добавлен пользователь [$($loginName)] с паролем [$($password)]!"        
+                }
+
+                #Добавить этого пользователя в пользователи конкретной БД
                 $dbUser = New-Object `
-	            -TypeName Microsoft.SqlServer.Management.Smo.User `
-	            -ArgumentList $db, $dbUserName
-$dbUser
-	            $dbUser.Login = $loginName
-	            $dbUser.Create()
-	            Write-Host("User $dbUser created successfully.")
+                -TypeName Microsoft.SqlServer.Management.Smo.User `
+                -ArgumentList $db, $dbUserName
+                $dbUser.Login = $loginName
+                $dbUser.Create()
 
-	            #assign database role for a new user
-	            $dbrole = $db.Roles[$roleOwnerName]
-	            $dbrole.AddMember($dbUserName)
-	            $dbrole.Alter()
-	            Write-Host("User $dbUser successfully added to $roleName role.")
-
-                <#
-                $login = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Login -ArgumentList $server, $loginName
-                $login.LoginType = [Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin
-                $login.PasswordExpirationEnabled = $false
-                $login.Create($password)
-                Write-Host "Добавлен пользователь $($loginName)!"
-
+                #Добавить пользователю роль db_owner
                 $dbrole = $db.Roles[$roleOwnerName]
-                $dbrole
-	            $dbrole.AddMember($roleOwnerName)
-	            $dbrole.Alter()
-	            Write-Host("Пользователю $($loginName) добавлена роль $($dbrole)")
-                #>
+                $dbrole.AddMember($dbUserName)
+                $dbrole.Alter()
+                Write-Host("Пользователю [$($dbUserName)] успешно добавлена роль [$($roleOwnerName)]")
+                [System.Environment]::NewLine
             }
         }
     }
+    Write-Host "<---------------------------Конец настройки базы данных MS SQL--------------------------->$([System.Environment]::NewLine)"
 }
 
-function create-users(){
-    
+function Update-ConnectionString([string[]] $Enviroument){
 
-    $loginName = "testUser"
-    $dbUserName = "testUser"
-    $password = "test123"
-    $databasenames = "Db", "Dbgg"
+    $path = "$PathEnviroument\$NameEnvironment$($Enviroument[0])\ConnectionString.config"
 
-    $server = New-Object("Microsoft.SqlServer.Management.Smo.Server")
+    $file = Get-Content -Path $path
 
-    # drop login if it exists
-    if ($server.Logins.Contains($loginName)) 
-    {   
-	    Write-Host("Deleting the existing login $loginName.")
-   	    $server.Logins[$loginName].Drop() 
-    }
+    $search="redis"
 
-    $login = New-Object `
-    -TypeName Microsoft.SqlServer.Management.Smo.Login `
-    -ArgumentList $server, $loginName
-    $login.LoginType = [Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin
-    $login.PasswordExpirationEnabled = $false
-    $login.Create($password)
-    Write-Host("Login $loginName created successfully.")
+    $linenumber = ($file|Select-String "$search").LineNumber
 
-    foreach($databaseToMap in $databasenames)
-    {
-	    $database = $server.Databases[$databaseToMap]
-	    if ($database.Users[$dbUserName])
-	    {
-		    Write-Host("Dropping user $dbUserName on $database.")
-	        $database.Users[$dbUserName].Drop()
-	    }
+    $ChangedFile = $file -replace '<add key="UseStaticFileContent" value="true" />', '<add key="UseStaticFileContent" value="false" />'
+    $ChangedFile | Set-Content -Path $path
 
-	    $dbUser = New-Object `
-	    -TypeName Microsoft.SqlServer.Management.Smo.User `
-	    -ArgumentList $database, $dbUserName
-	    $dbUser.Login = $loginName
-	    $dbUser.Create()
-	    Write-Host("User $dbUser created successfully.")
-
-	    #assign database role for a new user
-	    $dbrole = $database.Roles[$roleName]
-	    $dbrole.AddMember($dbUserName)
-	    $dbrole.Alter()
-	    Write-Host("User $dbUser successfully added to $roleName role.")
-    }
-}
-
-function Create-Datebase-MSSQL(){
-    [reflection.assembly]::LoadWithPartialName("Microsoft.SqlServer.Smo")
-    $server = New-Object("Microsoft.SqlServer.Management.Smo.Server")
-
-    Init-Variables-DB
-
-    $dbExists = $false
-    foreach ($db in $server.databases) {
-      if ($db.name -eq "Dbgg") {
-        Write-Host "!--> Такая база данных уже существует!"
-        $dbExists = $true
-      }
-    }
-
-    if (!$dbExists) {
-      $db = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -argumentlist $server, "Dbgg"
-      $db.Create()
-
-      $user = "user1"
-      $usr = New-Object -TypeName Microsoft.SqlServer.Management.Smo.User -argumentlist $db, $user
-      $usr.Login = $user
-      $usr.Create()
-
-      $role = $db.Roles["db_owner"]
-      $role.AddMember($user)
-    }
+    $file = Get-Content -Path $path
+    $ChangedFile = $file -replace '<fileDesignMode enabled="false" />', '<fileDesignMode enabled="true" />'
+    $ChangedFile | Set-Content -Path $path
 }
 #Начало работы программы 
 
-Write-Host "<--------------------------------------------------->"
-Write-Host "Расположите в одной директории этот файл с бэкапом."
-Write-Host ""
+Copy-Enviroument
 
-#Copy-Enviroument
-
-#Create-IIS
-
-#Create-Datebase-MSSQL
+Create-IIS
 
 Recover-MSSQL
 
