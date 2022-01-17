@@ -6,10 +6,9 @@ $PathEnviroument = "C:\inetpub\wwwroot"
 #Название папки с проектом
 $NameEnvironment = "NTL"
 
-#Массив имён серверов
+#Массив имён серверов (MSSQL, PostgreSQL, Oracle)
 $NameServers = @(
     'DESKTOP-C8A1CHF\SQLEXPRESS'
-
 )
 
 #Двумерный массив с конфигурацией среды.
@@ -21,11 +20,13 @@ $NameServers = @(
 # 3 аргумент: Название сайта в IIS. Для значения по умолчанию необходимо указать defaultNameIIS
 # 4 аргумент: Номер порта в IIS. Для значения по умолчанию необходимо указать defaultPortIIS.
 # 5 аргумент: Имя базы данных. Для значения по умолчанию необходимо указать defaultNameDB.
+# 5 аргумент: Имя пользователя. Для значения по умолчанию необходимо указать defaultLoginUSERDB.
+# 5 аргумент: Пароль пользователя. Для значения по умолчанию необходимо указать defaultPasswordUSERDB.
 
 $Envirouments = @(
     @('_DevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB'),
     @('_TestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
-    #@('_test4',$true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
+    @('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
 )
 
 #Дополнительные настройки
