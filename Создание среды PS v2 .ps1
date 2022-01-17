@@ -20,13 +20,14 @@ $NameServers = @(
 # 3 аргумент: Название сайта в IIS. Для значения по умолчанию необходимо указать defaultNameIIS
 # 4 аргумент: Номер порта в IIS. Для значения по умолчанию необходимо указать defaultPortIIS.
 # 5 аргумент: Имя базы данных. Для значения по умолчанию необходимо указать defaultNameDB.
-# 5 аргумент: Имя пользователя. Для значения по умолчанию необходимо указать defaultLoginUSERDB.
-# 5 аргумент: Пароль пользователя. Для значения по умолчанию необходимо указать defaultPasswordUSERDB.
+# 6 аргумент: Имя пользователя. Для значения по умолчанию необходимо указать defaultLoginUSERDB.
+# 7 аргумент: Пароль пользователя. Для значения по умолчанию необходимо указать defaultPasswordUSERDB.
+# 8 аргумент: Номер базы Redis.
 
 $Envirouments = @(
-    @('_DevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB'),
-    @('_TestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
-    @('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB')
+    @('_MyDevScript11111111',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 5),
+    @('_TestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 6)
+    #@('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 7)
 )
 
 #Дополнительные настройки
@@ -137,10 +138,6 @@ function Copy-Enviroument (){
                     #Определение необходимой базы данных
                     $fileBackupDB = Get-Childitem -Path "$folderPath\db"
                     ChangeStatusDataBaseTypes $fileBackupDB
-
-                    if ($enviroument[2]){
-                        Update-WebConfig $enviroument
-                    }
                 }
                 Write-Host $([System.Environment]::NewLine)
             }
@@ -258,22 +255,53 @@ function Recover-MSSQL(){
     Write-Host "<---------------------------Конец настройки базы данных MS SQL--------------------------->$([System.Environment]::NewLine)"
 }
 
-function Update-ConnectionString([string[]] $Enviroument){
-
-    $path = "$PathEnviroument\$NameEnvironment$($Enviroument[0])\ConnectionString.config"
+function Update-ConnectionStrings-MSSQL([string[]] $enviroument){
+    
+    $path = "$PathEnviroument\$NameEnvironment$($Enviroument[0])\ConnectionStrings.config"
+    
+    $numberDbRedis = $enviroument[8]
+    $stringCustomRedis = '  <add name="redis" connectionString="host=localhost;db=' + $numberDbRedis + ';port=6379" />'
+    $searchWordRedis = 'name="redis"'
+    
+    $dataSource = $NameServers[0]
+    $initialCatalog = $enviroument[5]
+    $userId = $enviroument[6]
+    $password = $enviroument[7]
+    $stringCustomDb = '  <add name="db" connectionString="Data Source='+ $dataSource +'; Initial Catalog='+ $initialCatalog +'; Persist Security Info=True; MultipleActiveResultSets=True; User ID='+ $userId +'; Password='+ $password +'; Pooling = true; Max Pool Size = 100; Async = true" />'
+    $searchWordDb = 'name="db"'
 
     $file = Get-Content -Path $path
-
-    $search="redis"
-
-    $linenumber = ($file|Select-String "$search").LineNumber
-
-    $ChangedFile = $file -replace '<add key="UseStaticFileContent" value="true" />', '<add key="UseStaticFileContent" value="false" />'
+    $stringSearchRedis = ($file|Select-String "$searchWordRedis").Line
+    $ChangedFile = $file -replace $stringSearchRedis, $stringCustomRedis
     $ChangedFile | Set-Content -Path $path
 
     $file = Get-Content -Path $path
-    $ChangedFile = $file -replace '<fileDesignMode enabled="false" />', '<fileDesignMode enabled="true" />'
+    $stringSearchDb = ($file|Select-String "$searchWordDb").Line
+    $ChangedFile = $file -replace $stringSearchDb, $stringCustomDb
     $ChangedFile | Set-Content -Path $path
+
+    Write-Host "Для среды разработки [$($NameEnvironment)$($Enviroument[0])] изменён файл [ConnectionStrings.config]!"
+}
+
+function Update-Files(){
+    Write-Host "<---------------------------Начало изменения файлов--------------------------->$([System.Environment]::NewLine)"
+    foreach($enviroument in $Envirouments){
+        if ($enviroument[1]){
+
+            if ($enviroument[2]){
+                Update-WebConfig $enviroument
+            }
+            if ($DataBaseTypes[0][2]){
+                Update-ConnectionStrings-MSSQL $enviroument
+            }
+            else{
+                Write-Warning "Простите, но пока работает только для MS SQL! Скоро будет и для Postgre :)"
+            }
+            
+        }
+        
+    }
+     Write-Host "$([System.Environment]::NewLine)<---------------------------Конец изменения файлов--------------------------->$([System.Environment]::NewLine)"
 }
 #Начало работы программы 
 
@@ -283,4 +311,5 @@ Create-IIS
 
 Recover-MSSQL
 
+Update-Files
 
