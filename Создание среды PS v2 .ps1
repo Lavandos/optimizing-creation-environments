@@ -25,8 +25,8 @@ $NameServers = @(
 # 8 аргумент: Номер базы Redis.
 
 $Envirouments = @(
-    @('_MyDevScript11111111',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 5),
-    @('_TestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 6)
+    @('_MyDevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 5),
+    @('_MyTestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 6)
     #@('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 7)
 )
 
