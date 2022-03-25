@@ -11,7 +11,7 @@ $TypeDB = @(
 # Парсинг config.json
 $pathConfig = "$PSScriptRoot\config.json"
 $json = Get-Content $pathConfig | ConvertFrom-Json
-$json.PathEnviroument = $json.PathEnviroument -replace '/', "\"
+$json.PathEnvironment = $json.PathEnvironment -replace '/', "\"
 
 function DefineDatabase ([string] $extension) {
     if ($extension -like ".bak") {
@@ -41,7 +41,7 @@ function Create-IIS () {
         $maxPort = [int]$maxPort
     }
 
-    foreach ($env in $json.Envirouments) {
+    foreach ($env in $json.Environments) {
         if ($env.IIS.Port -ne 'default') {
             if ([int]$env.IIS.Port -gt $maxPort) {
                 $maxPort = [int]$env.IIS.Port
@@ -54,10 +54,10 @@ function Create-IIS () {
         $maxPort = 4000
     }
 
-    foreach ($env in $json.Envirouments) {
+    foreach ($env in $json.Environments) {
         $titleWebSite = $env.IIS.Title
         $portWebSite = $env.IIS.Port
-        $physicalPathWebSite = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript
+        $physicalPathWebSite = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript
 
         #Проверка на значения по умолчанию
         if ($env.IIS.Title -like 'default') {
@@ -101,13 +101,13 @@ function Create-IIS () {
     Write-Host "`n<---------------------------Конец настройки сайта IIS--------------------------->`n"
 }
 
-function Copy-Enviroument () {
+function Copy-Environment () {
     $watch.Start()
     Write-Host "`n<---------------------------Начало настройки папки проекта--------------------------->`n"
     $cleanEnvPath = "$PSScriptRoot\" + $json.TitleEnvironment
-    foreach ($env in $json.Envirouments) {
+    foreach ($env in $json.Environments) {
         $titleEnv = $json.TitleEnvironment + $env.Postscript
-        $needFolderPath = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript
+        $needFolderPath = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript
         try {
             if (-not (Test-Path -Path $cleanEnvPath)) {
                 Write-Error "Невозможно найти папку чистой среды [$($json.TitleEnvironment)] в директории [$PSScriptRoot]"
@@ -137,7 +137,7 @@ function Copy-Enviroument () {
 }
 
 function Update-WebConfig([pscustomobject] $env) {
-    $pathFile = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript + "\Web.config"
+    $pathFile = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript + "\Web.config"
     $file = Get-Content -Path $pathFile
     $ChangedFile = $file -replace '<add key="UseStaticFileContent" value="true" />', '<add key="UseStaticFileContent" value="false" />'
     $ChangedFile | Set-Content -Path $pathFile
@@ -156,7 +156,7 @@ function Recover-MSSQL() {
     [void][reflection.assembly]::LoadWithPartialName("Microsoft.SqlServer.Smo")
     $server = New-Object("Microsoft.SqlServer.Management.Smo.Server") "$($json.TitleServers.MSSQL)"
     
-    foreach ($env in $json.Envirouments) {
+    foreach ($env in $json.Environments) {
         $titleDB = "$($env.DB.Title)"
         $loginUser = "$($env.DB.LoginUser)"
         $passwordUser = "$($env.DB.PasswordUser)"
@@ -194,7 +194,7 @@ function Recover-MSSQL() {
             Write-Host "Создана база данных [$titleDB]!"
 
             # Восстановление базы данных.
-            $pathBackupFile = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript + "\db"
+            $pathBackupFile = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript + "\db"
             $backupFile = Get-Childitem -Path "$pathBackupFile"
             Restore-SqlDatabase -ServerInstance "$($json.TitleServers.MSSQL)" -Database "$titleDB" -BackupFile "$($pathBackupFile)\$($backupFile)" -ReplaceDatabase
             Write-Host "База данных [$titleDB] восстановлена из файла [$backupFile]!"
@@ -241,7 +241,7 @@ function Recover-MSSQL() {
     Write-Host "`n<---------------------------Конец настройки базы данных MS SQL--------------------------->`n"
 }
 function Update-ConnectionStrings-MSSQL([pscustomobject] $env) {
-    $path = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript + "\ConnectionStrings.config"
+    $path = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript + "\ConnectionStrings.config"
     
     $numberDbRedis = $env.NumberDBRedis
     $stringCustomRedis = '  <add name="redis" connectionString="host=localhost;db=' + $numberDbRedis + ';port=6379" />'
@@ -270,7 +270,7 @@ function Update-ConnectionStrings-MSSQL([pscustomobject] $env) {
 function Update-Files() {
     Write-Host "`n<---------------------------Начало изменения файлов--------------------------->`n"
     $watch.Restart()
-    foreach ($env in $json.Envirouments) {
+    foreach ($env in $json.Environments) {
         if ($env.EditFileWebConfig) {
             Update-WebConfig $env
         }
@@ -292,7 +292,7 @@ function Update-Files() {
 
 #Начало работы программы 
 
-Copy-Enviroument
+Copy-Environment
 
 Create-IIS
 

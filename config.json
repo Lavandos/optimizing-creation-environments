@@ -1,5 +1,5 @@
 {
-    "PathEnviroument": "C:/inetpub/wwwroot",
+    "PathEnvironment": "C:/inetpub/wwwroot",
     "TitleEnvironment": "NTL",
     "TitleServers": {
         "MSSQL": "DESKTOP-AA000AA",
