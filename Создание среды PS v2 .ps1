@@ -1,308 +1,295 @@
-﻿#Основные настройки
+﻿# Таймер.
+$watch = [System.Diagnostics.Stopwatch]::StartNew()
 
-#Путь размещения среды
-$PathEnviroument = "C:\inetpub\wwwroot"
-
-#Название папки с проектом
-$NameEnvironment = "NTL"
-
-#Массив имён серверов (MSSQL, PostgreSQL, Oracle)
-$NameServers = @(
-    'DESKTOP-C8A1CHF\SQLEXPRESS'
+# Второй аргумент определяет какая база используется. После автоопределения становится = true
+$TypeDB = @(
+    @('MSSQL', $false),
+    @('PostgreSQL', $false),
+    @('Oracle', $false)
 )
 
-#Двумерный массив с конфигурацией среды.
-#!ВАЖНО! Должно быть указано минимум 2 среды для корректной работы!
-#Хранит: 
-# 0 аргумент: Текст приписки среды.
-# 1 аргумент: Необходимость копирования.
-# 2 аргумент: Необходимость изменения файла web.config
-# 3 аргумент: Название сайта в IIS. Для значения по умолчанию необходимо указать defaultNameIIS
-# 4 аргумент: Номер порта в IIS. Для значения по умолчанию необходимо указать defaultPortIIS.
-# 5 аргумент: Имя базы данных. Для значения по умолчанию необходимо указать defaultNameDB.
-# 6 аргумент: Имя пользователя. Для значения по умолчанию необходимо указать defaultLoginUSERDB.
-# 7 аргумент: Пароль пользователя. Для значения по умолчанию необходимо указать defaultPasswordUSERDB.
-# 8 аргумент: Номер базы Redis.
+# Парсинг config.json
+$pathConfig = "$PSScriptRoot\config.json"
+$json = Get-Content $pathConfig | ConvertFrom-Json
+$json.PathEnviroument = $json.PathEnviroument -replace '/', "\"
 
-$Envirouments = @(
-    @('_MyDevScript',   $true,   $true,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 5),
-    @('_MyTestScript',  $false,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 6)
-    #@('_Test2Script', $true,  $false,  'defaultNameIIS', 'defaultPortIIS', 'defaultNameDB', 'defaultLoginUSERDB', 'defaultPasswordUSERDB', 7)
-)
+function DefineDatabase ([string] $extension) {
+    if ($extension -like ".bak") {
+        $TypeDB[0][1] = $true
+    }
+    if ($extension -like ".enviroument") {
+        $TypeDB[1][1] = $true
+    }
+    if ($extension -like ".DMP") {
+        $TypeDB[2][1] = $true
+    }
+}
 
-#Дополнительные настройки
-
-#Двумерный массив с типами СУБД
-#Хранит: 
-# 1 аргумент: Название СУБД.
-# 2 аргумент: Название расширения файла бэкапа СУБД. Находится в папке db.
-# 3 аргумент: Какую СУБД необходимо использовать. Автоматически определяется. 
-$DataBaseTypes = @(
-    @('MSSQL',      '.bak',    $false),
-    @('PostgreSQL', '.enviroument', $false),
-    @('Oracle',     '.DMP',    $false)
-)
-
-#Функции с реализованной логикой
-
-function Create-IIS (){
-    Write-Host "<---------------------------Начало настройки сайта IIS--------------------------->$([System.Environment]::NewLine)"
+function Create-IIS () {
+    $watch.Restart()
+    Write-Host "`n<---------------------------Начало настройки сайта IIS--------------------------->`n"
     #Конфигурация сайта IIS
 
     $maxPort = -1
     $listWebSites = Get-Website *
-    foreach ($webSite in $listWebSites){
-        if ($webSite.id -eq 1){
-            continue
-        }
-        $port = $webSite.Bindings.Collection.bindingInformation -match "\d+"|%{$matches[0]}
-
+    foreach ($webSite in $listWebSites) {
         #Прохожусь по всем существующим сайтам в IIS и получаю максимальный порт
-        if ($port -gt $maxPort){
+        $port = $webSite.Bindings.Collection.bindingInformation -match "\d+" | % { $matches[0] }        
+        if ($port -gt $maxPort) {
             $maxPort = $port
         }
         $maxPort = [int]$maxPort
     }
-    #Прохожусь по заданным средам, которые указаны в массиве Envirouments
-    foreach ($enviroument in $Envirouments){
-        if ($enviroument[4] -ne 'defaultPortIIS'){
-            if ([int]$enviroument[4] -gt $maxPort){
-                $maxPort = [int]$enviroument[4]
+
+    foreach ($env in $json.Envirouments) {
+        if ($env.IIS.Port -ne 'default') {
+            if ([int]$env.IIS.Port -gt $maxPort) {
+                $maxPort = [int]$env.IIS.Port
             }
         }
     }
 
     #Делаю номер порта по умолчанию = 4000
-    if($maxPort -eq -1){
+    if ($maxPort -eq -1) {
         $maxPort = 4000
     }
 
-    for ($i=0; $i -lt $Envirouments.Count; $i++){
-        if ($Envirouments[$i][1] -like $true){
-            if ($Envirouments[$i][3] -like 'defaultNameIIS'){
-                $Envirouments[$i][3] = "$NameEnvironment$($Envirouments[$i][0])"
-            }
+    foreach ($env in $json.Envirouments) {
+        $titleWebSite = $env.IIS.Title
+        $portWebSite = $env.IIS.Port
+        $physicalPathWebSite = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript
 
-            if ($Envirouments[$i][4] -like 'defaultPortIIS'){
+        #Проверка на значения по умолчанию
+        if ($env.IIS.Title -like 'default') {
+            $titleWebSite = $json.TitleEnvironment + $env.Postscript
+            $env.IIS.Title = $titleWebSite
+        }
+        if ($env.IIS.Port -like 'default') {
+            $portWebSite = $maxPort + 1
+            $env.IIS.Port = $portWebSite
+        }
+
+        if (Get-Website -Name "$titleWebSite") {
+            Write-Warning "Сайт с именем [$titleWebSite] уже существует!"
+            continue;
+        }
+        if (Test-Path -Path $physicalPathWebSite) {
+            try {
+                if (-not (Test-Path -Path "IIS:\AppPools\$titleWebSite")) {
+                    [void](New-WebAppPool -Name $titleWebSite)
+                    Write-Host "Добавлен пул приложений [$titleWebSite]" 
+                }
+                if (-not (Test-Path -Path "IIS:\Sites\$titleWebSite")) {
+                    [void](New-WebSite -Name $titleWebSite -Port $portWebSite -PhysicalPath $physicalPathWebSite -ApplicationPool $titleWebSite)
+                    Write-Host "Добавлен сайт [$titleWebSite]"
+                }
+                if (-not (Get-WebApplication -Site $titleWebSite)) {
+                    [void](New-WebApplication -Name "0" -Site $titleWebSite -PhysicalPath "$physicalPathWebSite\Terrasoft.WebApp" -ApplicationPool $titleWebSite)
+                    Write-Host "Добавлено приложение для сайта [$titleWebSite]" 
+                }
+                Write-Host "Сайт [$($titleWebSite):$($portWebSite)] успешно создан!`n" -ForegroundColor Green
                 $maxPort += 1
-                $Envirouments[$i][4] = $maxPort  
             }
-
-            $nameWebSite = $Envirouments[$i][3]
-            $portWebSite = [int]$Envirouments[$i][4]
-            $physicalPathWebSite = "$PathEnviroument\$($NameEnvironment)$($Envirouments[$i][0])"
-
-            if (Get-Website -Name "$nameWebSite"){
-                Write-Warning "Сайт с именем [$($nameWebSite)] уже существует!"
-                $maxPort -= 1
-            }
-            else{
-                [void](New-WebAppPool -Name "$nameWebSite")
-                [void](New-WebSite -Name "$nameWebSite" -Port "$portWebSite" -PhysicalPath "$physicalPathWebSite" -ApplicationPool "$nameWebSite")
-                [void](New-WebApplication -Name "0" -Site "$nameWebSite" -PhysicalPath "$physicalPathWebSite\Terrasoft.WebApp" -ApplicationPool "$nameWebSite")
-                Write-Host "Создан сайт IIS [$($nameWebSite):$($portWebSite)]$([System.Environment]::NewLine)"
+            catch {
+                Write-Warning "Что-то пошло не так при создании сайта [$titleWebSite]"
+                Write-Error $Error
             }
         }
     }
-    Write-Host "<---------------------------Конец настройки сайта IIS--------------------------->$([System.Environment]::NewLine)"
+    $watch.Stop()
+    Write-Host "Время работы: " + $watch.Elapsed -ForegroundColor Cyan
+    Write-Host "`n<---------------------------Конец настройки сайта IIS--------------------------->`n"
 }
 
-function ChangeStatusDataBaseTypes([System.IO.FileInfo]$fileBackupDB){
-    foreach ($dataBaseType in $DataBaseTypes){
-        if ($dataBaseType[1] -like $fileBackupDB.Extension){
-            $dataBaseType[2] = $true
-        }
-    }
-}
-
-function Copy-Enviroument (){
-    Write-Host "$([System.Environment]::NewLine) <---------------------------Начало настройки папки проекта---------------------------> $([System.Environment]::NewLine)"
-    foreach ($enviroument in $Envirouments){
-        $folderPath = "$pathEnviroument\$NameEnvironment$($enviroument[0])"
-        if ($enviroument[1]){
-            try{
-                if (-not (Test-Path -Path $PSScriptRoot\$NameEnvironment)){
-                    Write-Error "Невозможно найти папку чистой среды [$($NameEnvironment)] в директории [$($PSScriptRoot)]"
-                    Exit
-                }
-                if (Test-Path -Path "$folderPath"){
-                    Write-Warning "По пути [$($folderPath)] уже существует такая папка!"
-                    continue;
-                }
-                else {
-                    Write-Host "Идёт копирование среды [$($nameEnvironment)$($enviroument[0])]..."
-                    Copy-Item -Path "$PSScriptRoot\$NameEnvironment" -Destination "$($folderPath)" -Recurse
-
-                    Write-Host "Среда успешно скопирована! Расположение: [$($folderPath)]"
-                
-                    #Определение необходимой базы данных
-                    $fileBackupDB = Get-Childitem -Path "$folderPath\db"
-                    ChangeStatusDataBaseTypes $fileBackupDB
-                }
-                Write-Host $([System.Environment]::NewLine)
-            }
-            catch{
-                Write-Error "Ошибка при копировании среды [$($NameEnvironment)$($enviroument[0])]!"
+function Copy-Enviroument () {
+    $watch.Start()
+    Write-Host "`n<---------------------------Начало настройки папки проекта--------------------------->`n"
+    $cleanEnvPath = "$PSScriptRoot\" + $json.TitleEnvironment
+    foreach ($env in $json.Envirouments) {
+        $titleEnv = $json.TitleEnvironment + $env.Postscript
+        $needFolderPath = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript
+        try {
+            if (-not (Test-Path -Path $cleanEnvPath)) {
+                Write-Error "Невозможно найти папку чистой среды [$($json.TitleEnvironment)] в директории [$PSScriptRoot]"
                 Exit
             }
+            if (Test-Path -Path $needFolderPath) {
+                Write-Warning "По пути [$($needFolderPath)] уже существует такая папка!"
+                continue;
+            }
+            Write-Host "Идёт копирование среды [$titleEnv]..."
+            Copy-Item -Path $cleanEnvPath -Destination $needFolderPath -Recurse
+            Write-Host "Среда успешно скопирована! Расположение: [$needFolderPath]`n" -ForegroundColor Green
+        }
+        catch {
+            Write-Warning "Ошибка при копировании среды [$titleEnv]!"
+            Write-Error $Error
+            continue;
         }
     }
-    Write-Host "<---------------------------Конец настройки папки проекта--------------------------->$([System.Environment]::NewLine) "
+    #Определение необходимой базы данных
+    $pathBackupDB = "$PSScriptRoot\" + $json.TitleEnvironment + "\db"
+    $backupDB = Get-Childitem -Path $pathBackupDB
+    DefineDatabase $backupDB.Extension
+    $watch.Stop()
+    Write-Host "Время работы: " + $watch.Elapsed -ForegroundColor Cyan
+    Write-Host "`n<---------------------------Конец настройки папки проекта--------------------------->`n"
 }
 
-function Update-WebConfig([string[]] $Enviroument){
-    $path = "$PathEnviroument\$NameEnvironment$($Enviroument[0])\Web.config"
-
-    $file = Get-Content -Path $path
+function Update-WebConfig([pscustomobject] $env) {
+    $pathFile = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript + "\Web.config"
+    $file = Get-Content -Path $pathFile
     $ChangedFile = $file -replace '<add key="UseStaticFileContent" value="true" />', '<add key="UseStaticFileContent" value="false" />'
-    $ChangedFile | Set-Content -Path $path
+    $ChangedFile | Set-Content -Path $pathFile
 
-    $file = Get-Content -Path $path
+    $file = Get-Content -Path $pathFile
     $ChangedFile = $file -replace '<fileDesignMode enabled="false" />', '<fileDesignMode enabled="true" />'
-    $ChangedFile | Set-Content -Path $path
+    $ChangedFile | Set-Content -Path $pathFile
 
-    Write-Host "Для среды разработки [$($NameEnvironment)$($Enviroument[0])] изменён файл [Web.config]!"
+    Write-Host "Для среды разработки [$($json.TitleEnvironment)$($env.Postscript)] изменён файл [Web.config]!"
 }
 
-function Init-Variables-DBs(){
-    foreach($enviroument in $Envirouments){
-        if ($enviroument[5] -eq 'defaultNameDB'){
-            $enviroument[5] = "$NameEnvironment$($enviroument[0])"
-        }
-        if ($enviroument[6] -eq 'defaultLoginUSERDB'){
-            $enviroument[6] = "User_$NameEnvironment$($enviroument[0])"
-        }
-        if ($enviroument[7] -eq 'defaultPasswordUSERDB'){
-            $enviroument[7] = "$NameEnvironment$($enviroument[0])"
-        }
-    }
-}
-
-function Recover-MSSQL(){
-    Write-Host "<---------------------------Начало настройки базы данных MS SQL--------------------------->$([System.Environment]::NewLine)"
+function Recover-MSSQL() {
+    $watch.Restart()
+    Write-Host "`n<---------------------------Начало настройки базы данных MS SQL--------------------------->`n"
     Import-Module SQLPS -DisableNameChecking
     [void][reflection.assembly]::LoadWithPartialName("Microsoft.SqlServer.Smo")
-    $server = New-Object("Microsoft.SqlServer.Management.Smo.Server") "$($NameServers[0])"
-
-    #Инициализация переменных для базы данных
-    Init-Variables-DBs
+    $server = New-Object("Microsoft.SqlServer.Management.Smo.Server") "$($json.TitleServers.MSSQL)"
     
-    foreach($enviroument in $Envirouments){
-        $databaseName = "$($enviroument[5])"
-        $dbUserName = "$($enviroument[6])"
-        $loginName = "$($enviroument[6])"
-        $password = "$($enviroument[7])"
+    foreach ($env in $json.Envirouments) {
+        $titleDB = "$($env.DB.Title)"
+        $loginUser = "$($env.DB.LoginUser)"
+        $passwordUser = "$($env.DB.PasswordUser)"
         $roleOwnerName = "db_owner"
-        if ($enviroument[1]){
-            #Проверяю, есть ли такая бд
-            $dbExists = $false
-            foreach ($db in $server.databases) {
-              if ($db.name -eq "$databaseName") {
-                Write-Warning "База данных [$($databaseName)] уже существует!"
-                $dbExists = $true
-              }
-            }
-            # Если нет такой бд
-            if (-not $dbExists) {
-                $db = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -argumentlist $server, "$databasename"
-                $db.Create()
-                Write-Host "Создана база данных [$($databaseName)]!"
 
-                #Восстановление базы данных
-                $nameRelocateDataFile = "$($databaseName)_Data"
-                $nameRelocateLogFile = "$($databaseName)_Log"
-                $pathBackupFile = "$($PathEnviroument)\$($NameEnvironment)$($enviroument[0])\db"
-                $backupFile = Get-Childitem -Path "$pathBackupFile"    
-                Restore-SqlDatabase -ServerInstance "$($NameServers[0])" -Database "$($databaseName)" -BackupFile "$($pathBackupFile)\$($backupFile)" -ReplaceDatabase
-            
-                Write-Host "База данных [$($databaseName)] восстановлена из файла [$($backupFile)]!"
+        if ($titleDB -like "default") {
+            $titleDB = $json.TitleEnvironment + $env.Postscript
+            $env.DB.Title = $titleDB
+        }
+        if ($loginUser -like "default") {
+            $loginUser = "User_" + $json.TitleEnvironment + $env.Postscript
+            $env.DB.LoginUser = $loginUser
+        }
+        if ($passwordUser -like "default") {
+            $passwordUser = "Pass_" + $json.TitleEnvironment + $env.Postscript
+            $env.DB.PasswordUser = $passwordUser
+        }
 
-                # Если нет такого логина
-                $loginExists = $false
-                foreach ($login in $server.logins) {
-                  if ($login.name -eq "$loginName") {
-                    Write-Warning "Пользователь [$($loginName)] уже существует!"
-                    $loginExists = $true
-                  }
-                }
-
-                if (-not $loginExists){
-                
-                    #Добавить пользователя
-                    $login = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Login -ArgumentList $server, $loginName
-                    $login.LoginType = [Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin
-                    $login.PasswordExpirationEnabled = $false
-                    $login.Create($password)
-                    Write-Host "Добавлен пользователь [$($loginName)] с паролем [$($password)]!"        
-                }
-
-                #Добавить этого пользователя в пользователи конкретной БД
-                $dbUser = New-Object `
-                -TypeName Microsoft.SqlServer.Management.Smo.User `
-                -ArgumentList $db, $dbUserName
-                $dbUser.Login = $loginName
-                $dbUser.Create()
-
-                #Добавить пользователю роль db_owner
-                $dbrole = $db.Roles[$roleOwnerName]
-                $dbrole.AddMember($dbUserName)
-                $dbrole.Alter()
-                Write-Host("Пользователю [$($dbUserName)] успешно добавлена роль [$($roleOwnerName)]")
-                [System.Environment]::NewLine
+        # Если есть БД с таким же именем, то мы пропускаем создание БД для текущей среды.
+        $existsDB = $false
+        foreach ($db in $server.databases) {
+            if ($db.name -eq $titleDB) {
+                Write-Warning "База данных [$titleDB] уже существует!"
+                $existsDB = $true
             }
         }
-    }
-    Write-Host "<---------------------------Конец настройки базы данных MS SQL--------------------------->$([System.Environment]::NewLine)"
-}
+        if ($existsDB) {
+            continue;
+        }
 
-function Update-ConnectionStrings-MSSQL([string[]] $enviroument){
+        # Создаём БД.
+        try {
+            $db = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Database -argumentlist $server, "$titleDB"
+            $db.Create()
+            Write-Host "Создана база данных [$titleDB]!"
+
+            # Восстановление базы данных.
+            $pathBackupFile = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript + "\db"
+            $backupFile = Get-Childitem -Path "$pathBackupFile"
+            Restore-SqlDatabase -ServerInstance "$($json.TitleServers.MSSQL)" -Database "$titleDB" -BackupFile "$($pathBackupFile)\$($backupFile)" -ReplaceDatabase
+            Write-Host "База данных [$titleDB] восстановлена из файла [$backupFile]!"
+
+            # Если нет такого логина
+            $loginExists = $false
+            foreach ($login in $server.logins) {
+                if ($login.name -eq $loginUser) {
+                    Write-Warning "Пользователь [$loginUser] уже существует!"
+                    $loginExists = $true
+                }
+            }
+            if (-not $loginExists) {
+                #Добавить пользователя
+                $login = New-Object -TypeName Microsoft.SqlServer.Management.Smo.Login -ArgumentList $server, "$loginUser"
+                $login.LoginType = [Microsoft.SqlServer.Management.Smo.LoginType]::SqlLogin
+                $login.PasswordExpirationEnabled = $false
+                $login.Create($passwordUser)
+                Write-Host "Добавлен пользователь [$loginUser] с паролем [$passwordUser]!"
+            }
+
+            #Добавить этого пользователя в пользователи конкретной БД
+            $dbUser = New-Object `
+                -TypeName Microsoft.SqlServer.Management.Smo.User `
+                -ArgumentList $db, $loginUser
+            $dbUser.Login = $loginUser
+            $dbUser.Create()
+
+            #Добавить пользователю роль db_owner
+            $dbrole = $db.Roles[$roleOwnerName]
+            $dbrole.AddMember($loginUser)
+            $dbrole.Alter()
+            Write-Host("Пользователю [$loginUser] успешно добавлена роль [$roleOwnerName]")
+            Write-Host("База данных [$titleDB] восстановлена и настроена!`n") -ForegroundColor Green
+        }
+        catch {
+            Write-Warning "Что-то пошло не так при работе с БД [$titleDB]"
+            Write-Error $Error
+            continue;
+        }
+    }
+    $watch.Stop()
+    Write-Host "Время работы: " + $watch.Elapsed -ForegroundColor Cyan
+    Write-Host "`n<---------------------------Конец настройки базы данных MS SQL--------------------------->`n"
+}
+function Update-ConnectionStrings-MSSQL([pscustomobject] $env) {
+    $path = $json.PathEnviroument + "\" + $json.TitleEnvironment + $env.Postscript + "\ConnectionStrings.config"
     
-    $path = "$PathEnviroument\$NameEnvironment$($Enviroument[0])\ConnectionStrings.config"
-    
-    $numberDbRedis = $enviroument[8]
+    $numberDbRedis = $env.NumberDBRedis
     $stringCustomRedis = '  <add name="redis" connectionString="host=localhost;db=' + $numberDbRedis + ';port=6379" />'
     $searchWordRedis = 'name="redis"'
     
-    $dataSource = $NameServers[0]
-    $initialCatalog = $enviroument[5]
-    $userId = $enviroument[6]
-    $password = $enviroument[7]
-    $stringCustomDb = '  <add name="db" connectionString="Data Source='+ $dataSource +'; Initial Catalog='+ $initialCatalog +'; Persist Security Info=True; MultipleActiveResultSets=True; User ID='+ $userId +'; Password='+ $password +'; Pooling = true; Max Pool Size = 100; Async = true" />'
+    $dataSource = $json.TitleServers.MSSQL
+    $initialCatalog = $env.DB.Title
+    $userId = $env.DB.LoginUser
+    $password = $env.DB.PasswordUser
+    $stringCustomDb = '  <add name="db" connectionString="Data Source=' + $dataSource + '; Initial Catalog=' + $initialCatalog + '; Persist Security Info=True; MultipleActiveResultSets=True; User ID=' + $userId + '; Password=' + $password + '; Pooling = true; Max Pool Size = 100; Async = true" />'
     $searchWordDb = 'name="db"'
 
     $file = Get-Content -Path $path
-    $stringSearchRedis = ($file|Select-String "$searchWordRedis").Line
+    $stringSearchRedis = ($file | Select-String "$searchWordRedis").Line
     $ChangedFile = $file -replace $stringSearchRedis, $stringCustomRedis
     $ChangedFile | Set-Content -Path $path
 
     $file = Get-Content -Path $path
-    $stringSearchDb = ($file|Select-String "$searchWordDb").Line
+    $stringSearchDb = ($file | Select-String "$searchWordDb").Line
     $ChangedFile = $file -replace $stringSearchDb, $stringCustomDb
     $ChangedFile | Set-Content -Path $path
 
-    Write-Host "Для среды разработки [$($NameEnvironment)$($Enviroument[0])] изменён файл [ConnectionStrings.config]!"
+    Write-Host "Для среды разработки [$($json.TitleEnvironment)$($env.Postscript)] изменён файл [ConnectionStrings.config]!"
 }
 
-function Update-Files(){
-    Write-Host "<---------------------------Начало изменения файлов--------------------------->$([System.Environment]::NewLine)"
-    foreach($enviroument in $Envirouments){
-        if ($enviroument[1]){
-
-            if ($enviroument[2]){
-                Update-WebConfig $enviroument
-            }
-            if ($DataBaseTypes[0][2]){
-                Update-ConnectionStrings-MSSQL $enviroument
-            }
-            else{
-                Write-Warning "Простите, но пока работает только для MS SQL! Скоро будет и для Postgre :)"
-            }
-            
+function Update-Files() {
+    Write-Host "`n<---------------------------Начало изменения файлов--------------------------->`n"
+    $watch.Restart()
+    foreach ($env in $json.Envirouments) {
+        if ($env.EditFileWebConfig) {
+            Update-WebConfig $env
         }
-        
+        if ($TypeDB[0]) {
+            Update-ConnectionStrings-MSSQL $env
+        }
+        if ($TypeDB[1]) {
+            #Update-ConnectionStrings-PostgreSQL
+        }
+        if ($TypeDB[2]) {
+            #Update-ConnectionStrings-Oracle
+        }        
     }
-     Write-Host "$([System.Environment]::NewLine)<---------------------------Конец изменения файлов--------------------------->$([System.Environment]::NewLine)"
+    $watch.Stop()
+    Write-Host("Изменение файлов закончено!`n") -ForegroundColor Green
+    Write-Host "Время работы: " + $watch.Elapsed -ForegroundColor Cyan
+    Write-Host "`n<---------------------------Конец изменения файлов--------------------------->`n"
 }
+
 #Начало работы программы 
 
 Copy-Enviroument
@@ -312,4 +299,3 @@ Create-IIS
 Recover-MSSQL
 
 Update-Files
-
