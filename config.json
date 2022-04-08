@@ -1,15 +1,15 @@
 {
     "PathEnvironment": "C:/inetpub/wwwroot",
-    "TitleEnvironment": "NTL",
+    "TitleEnvironment": "TestENV",
     "TitleServers": {
         "MSSQL": "DESKTOP-AA000AA",
         "PostgreSQL": "",
         "Oracle": ""
     },
-    "Envirouments": [{
+    "Environments": [{
             "Postscript": "_dev",
             "EditFileWebConfig": true,
-            "NumberDBRedis": 5,
+            "NumberDBRedis": 7,
             "IIS": {
                 "Title": "default",
                 "Port": "default"
@@ -23,7 +23,7 @@
         {
             "Postscript": "_test",
             "EditFileWebConfig": false,
-            "NumberDBRedis": 6,
+            "NumberDBRedis": 8,
             "IIS": {
                 "Title": "default",
                 "Port": "default"

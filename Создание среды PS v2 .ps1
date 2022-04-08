@@ -240,6 +240,7 @@ function Recover-MSSQL() {
     Write-Host "Время работы: " + $watch.Elapsed -ForegroundColor Cyan
     Write-Host "`n<---------------------------Конец настройки базы данных MS SQL--------------------------->`n"
 }
+
 function Update-ConnectionStrings-MSSQL([pscustomobject] $env) {
     $path = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript + "\ConnectionStrings.config"
     
