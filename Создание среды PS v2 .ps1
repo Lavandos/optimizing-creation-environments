@@ -1,12 +1,18 @@
-﻿# Таймер.
+﻿# Таймер для операций.
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Второй аргумент определяет какая база используется. После автоопределения становится = true
-$TypeDB = @(
-    @('MSSQL', $false),
-    @('PostgreSQL', $false),
-    @('Oracle', $false)
-)
+# Таймер работы программы
+$totalWatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+$DB_MSSQL = [PSCustomObject]@{
+    Name     = 'MSSQL'
+    UseThisDB = $false
+}
+
+$DB_PostgreSQL = [PSCustomObject]@{
+    Name     = 'MSSQL'
+    UseThisDB = $false
+}
 
 # Парсинг config.json
 $pathConfig = "$PSScriptRoot\config.json"
@@ -15,13 +21,10 @@ $json.PathEnvironment = $json.PathEnvironment -replace '/', "\"
 
 function DefineDatabase ([string] $extension) {
     if ($extension -like ".bak") {
-        $TypeDB[0][1] = $true
+        $DB_MSSQL.UseThisDB = $true
     }
     if ($extension -like ".enviroument") {
-        $TypeDB[1][1] = $true
-    }
-    if ($extension -like ".DMP") {
-        $TypeDB[2][1] = $true
+        $DB_PostgreSQL.UseThisDB = $true
     }
 }
 
@@ -31,28 +34,34 @@ function Create-IIS () {
     #Конфигурация сайта IIS
 
     $maxPort = -1
+    $defaultPort = 4000
+
     $listWebSites = Get-Website *
+
     foreach ($webSite in $listWebSites) {
         #Прохожусь по всем существующим сайтам в IIS и получаю максимальный порт
-        $port = $webSite.Bindings.Collection.bindingInformation -match "\d+" | % { $matches[0] }        
-        if ($port -gt $maxPort) {
+        $ports = $webSite.Bindings.Collection.bindingInformation -match "\d+" | % { $matches[0] }
+        foreach ($port in $ports){
+            if ([int]$port -gt $maxPort) {
             $maxPort = $port
+            }
         }
-        $maxPort = [int]$maxPort
     }
 
     foreach ($env in $json.Environments) {
         if ($env.IIS.Port -ne 'default') {
-            if ([int]$env.IIS.Port -gt $maxPort) {
-                $maxPort = [int]$env.IIS.Port
+            $portIIS = [int]$env.IIS.Port
+            if ($portIIS -gt $maxPort) {
+                $maxPort = $portIIS
             }
         }
     }
 
     #Делаю номер порта по умолчанию = 4000
     if ($maxPort -eq -1) {
-        $maxPort = 4000
+        $maxPort = $defaultPort
     }
+    $maxPort = [int]$maxPort
 
     foreach ($env in $json.Environments) {
         $titleWebSite = $env.IIS.Title
@@ -241,6 +250,15 @@ function Recover-MSSQL() {
     Write-Host "`n<---------------------------Конец настройки базы данных MS SQL--------------------------->`n"
 }
 
+function Recover-DB(){
+    if ($DB_MSSQL.UseThisDB){
+        Recover-MSSQL
+    }
+    if ($DB_PostgreSQL.UseThisDB){
+        #Recover-PostgreSQL
+    }
+}
+
 function Update-ConnectionStrings-MSSQL([pscustomobject] $env) {
     $path = $json.PathEnvironment + "\" + $json.TitleEnvironment + $env.Postscript + "\ConnectionStrings.config"
     
@@ -275,15 +293,12 @@ function Update-Files() {
         if ($env.EditFileWebConfig) {
             Update-WebConfig $env
         }
-        if ($TypeDB[0]) {
+        if ($DB_MSSQL.UseThisDB) {
             Update-ConnectionStrings-MSSQL $env
         }
-        if ($TypeDB[1]) {
+        if ($DB_PostgreSQL.UseThisDB) {
             #Update-ConnectionStrings-PostgreSQL
-        }
-        if ($TypeDB[2]) {
-            #Update-ConnectionStrings-Oracle
-        }        
+        }   
     }
     $watch.Stop()
     Write-Host("Изменение файлов закончено!`n") -ForegroundColor Green
@@ -292,11 +307,15 @@ function Update-Files() {
 }
 
 #Начало работы программы 
+$totalWatch.Start();
 
 Copy-Environment
 
 Create-IIS
 
-Recover-MSSQL
+Recover-DB
 
 Update-Files
+
+$totalWatch.Stop()
+Write-Host "Итоговое время работы скрипта: " + $totalWatch.Elapsed -ForegroundColor Cyan
