@@ -6,7 +6,8 @@
         "PostgreSQL": "",
         "Oracle": ""
     },
-    "Environments": [{
+    "Environments": [
+        {
             "Postscript": "_dev",
             "EditFileWebConfig": true,
             "NumberDBRedis": 7,
